@@ -3,7 +3,6 @@ package server;
 import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.util.Scanner;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -25,7 +24,7 @@ public class EchoServer {
                 Socket clientSocket = server.accept();
                 System.out.printf("Подключен клиент: %s%n", clientSocket.getPort());
 
-                pool.submit(() -> handle(clientSocket));
+                pool.submit(new ClientHandler(clientSocket));
             }
 
         } catch (IOException e) {

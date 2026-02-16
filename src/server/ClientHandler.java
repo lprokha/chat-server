@@ -4,13 +4,15 @@ import java.io.*;
 import java.net.Socket;
 import java.util.Scanner;
 
-public class ClientHandler {
+public class ClientHandler implements Runnable {
     private final Socket socket;
 
     public ClientHandler(Socket socket) {
         this.socket = socket;
     }
-    private void handle(Socket socket) {
+
+    @Override
+    public void run() {
         try(
                 socket;
                 Scanner reader = getReader(socket);
@@ -19,9 +21,13 @@ public class ClientHandler {
             sendResponse("Привет " + socket.getPort(), writer);
 
             while (true) {
-                String message = reader.nextLine();
+                if (!reader.hasNextLine()) {
+                    System.out.printf("Пользователь %s отключился%n", socket.getPort());
+                    break;
+                }
+                String message = reader.nextLine().strip();
                 System.out.printf("Got: %s%n", message);
-                if (isEmptyMsg(message) || isQuitMsg(message)) {
+                if (isQuitMsg(message)) {
                     System.out.printf("Пользователь %s отключился%n", socket.getPort());
                     break;
                 }
@@ -34,7 +40,6 @@ public class ClientHandler {
         System.out.println("Клиент отключен!");
     }
 
-
     private void sendResponse(String response, Writer writer) throws IOException {
         writer.write(response);
         writer.write(System.lineSeparator());
@@ -43,10 +48,6 @@ public class ClientHandler {
 
     private boolean isQuitMsg(String message) {
         return "bye".equalsIgnoreCase(message);
-    }
-
-    private boolean isEmptyMsg(String message) {
-        return message == null || message.isBlank();
     }
 
     private PrintWriter getWriter(Socket socket) throws IOException {
