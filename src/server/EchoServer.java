@@ -3,12 +3,16 @@ package server;
 import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 public class EchoServer {
     private final int port;
     private final ExecutorService pool = Executors.newCachedThreadPool();
+
+    private final List<ClientHandler> clients = new CopyOnWriteArrayList<>();
 
     private EchoServer(int port) {
         this.port = port;
@@ -24,7 +28,7 @@ public class EchoServer {
                 Socket clientSocket = server.accept();
                 System.out.printf("Подключен клиент: %s%n", clientSocket.getPort());
 
-                pool.submit(new ClientHandler(clientSocket));
+                pool.submit(new ClientHandler(clientSocket, clients));
             }
 
         } catch (IOException e) {
@@ -32,8 +36,4 @@ public class EchoServer {
             e.printStackTrace();
         }
     }
-
-
-
-
 }

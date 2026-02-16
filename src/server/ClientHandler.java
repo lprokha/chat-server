@@ -2,13 +2,20 @@ package server;
 
 import java.io.*;
 import java.net.Socket;
+import java.util.List;
+import java.util.Random;
 import java.util.Scanner;
 
 public class ClientHandler implements Runnable {
     private final Socket socket;
+    private final List<ClientHandler> allClients; // Ссылка на общий список
+    private final String userName;
+    private PrintWriter out;
 
-    public ClientHandler(Socket socket) {
+    public ClientHandler(Socket socket, List<ClientHandler> allClients) {
         this.socket = socket;
+        this.allClients = allClients;
+        this.userName = "User-" + (100 + new Random().nextInt(900));
     }
 
     @Override
@@ -18,26 +25,50 @@ public class ClientHandler implements Runnable {
                 Scanner reader = getReader(socket);
                 PrintWriter writer = getWriter(socket)
         ) {
-            sendResponse("Привет " + socket.getPort(), writer);
+            this.out = writer;
+            allClients.add(this);
+            System.out.printf("Клиент %s (порт %s) вошел в чат%n", userName, socket.getPort());
+            broadcast("присоединился к чату!");
+            sendResponse("Привет, " + userName + "! Ты в чате.", writer);
 
             while (true) {
                 if (!reader.hasNextLine()) {
-                    System.out.printf("Пользователь %s отключился%n", socket.getPort());
                     break;
                 }
                 String message = reader.nextLine().strip();
-                System.out.printf("Got: %s%n", message);
                 if (isQuitMsg(message)) {
-                    System.out.printf("Пользователь %s отключился%n", socket.getPort());
                     break;
                 }
-                sendResponse(message.toUpperCase(), writer);
+                broadcast(message);
             }
         } catch (IOException e) {
             e.printStackTrace();
+        } finally {
+            System.out.printf("Пользователь %s отключился%n", userName);
+            allClients.remove(this);
+            broadcast("покинул чат.");
         }
 
         System.out.println("Клиент отключен!");
+    }
+
+    private void broadcast(String message) {
+        String formattedMessage = userName + ": " + message;
+        System.out.println("Рассылка: " + formattedMessage);
+
+        for (ClientHandler client : allClients) {
+            if (client != this) {
+                client.sendRawMessage(formattedMessage);
+            }
+        }
+    }
+
+    public void sendRawMessage(String rawMessage) {
+        if (out != null) {
+            out.write(rawMessage);
+            out.write(System.lineSeparator());
+            out.flush();
+        }
     }
 
     private void sendResponse(String response, Writer writer) throws IOException {
