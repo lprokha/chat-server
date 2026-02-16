@@ -1,21 +1,34 @@
 package server;
 
+import commands.*;
+
 import java.io.*;
 import java.net.Socket;
-import java.util.List;
-import java.util.Random;
-import java.util.Scanner;
+import java.util.*;
 
 public class ClientHandler implements Runnable {
     private final Socket socket;
     private final List<ClientHandler> allClients; // Ссылка на общий список
-    private final String userName;
+    private String userName;
     private PrintWriter out;
+    private final Map<String, Command> commands = new HashMap<>();
 
     public ClientHandler(Socket socket, List<ClientHandler> allClients) {
         this.socket = socket;
         this.allClients = allClients;
         this.userName = "User-" + (100 + new Random().nextInt(900));
+        initCommands();
+    }
+
+    private void initCommands() {
+        commands.put("/name", new NameCommand());
+        commands.put("/list", new ListCommand());
+        commands.put("/whisper", new WhisperCommand());
+        commands.put("/bye", new ByeCommand());
+        commands.put("/time", new TimeCommand());
+        commands.put("/date", new DateCommand());
+        commands.put("/reverse", new ReverseCommand());
+        commands.put("/upper", new UpperCommand());
     }
 
     @Override
@@ -29,17 +42,26 @@ public class ClientHandler implements Runnable {
             allClients.add(this);
             System.out.printf("Клиент %s (порт %s) вошел в чат%n", userName, socket.getPort());
             broadcast("присоединился к чату!");
-            sendResponse("Привет, " + userName + "! Ты в чате.", writer);
+            sendResponse("Привет, " + userName + "! Ты в чате.\nДоступные команды: " + commands.keySet(), writer);
 
-            while (true) {
-                if (!reader.hasNextLine()) {
-                    break;
-                }
+            while (reader.hasNextLine()) {
                 String message = reader.nextLine().strip();
-                if (isQuitMsg(message)) {
-                    break;
+                if (message.isEmpty()){
+                    continue;
                 }
-                broadcast(message);
+                if (message.startsWith("/")) {
+                    String[] parts = message.split(" ", 2);
+                    String cmdLabel = parts[0].toLowerCase();
+                    String str = parts.length > 1 ? parts[1] : "";
+
+                    Command command = commands.getOrDefault(cmdLabel, new DefaultCommand());
+                    CommandResult result = command.execute(str, this);
+
+                    sendResponse(result.getReply(), writer);
+                    if (result.shouldClose()) break;
+                } else {
+                    broadcast(message);
+                }
             }
         } catch (IOException e) {
             e.printStackTrace();
@@ -52,13 +74,14 @@ public class ClientHandler implements Runnable {
         System.out.println("Клиент отключен!");
     }
 
-    private void broadcast(String message) {
-        String formattedMessage = userName + ": " + message;
-        System.out.println("Рассылка: " + formattedMessage);
+    public void broadcast(String message) {
+        broadcastCustom(userName + ": " + message);
+    }
 
+    public void broadcastCustom(String fullMessage) {
         for (ClientHandler client : allClients) {
             if (client != this) {
-                client.sendRawMessage(formattedMessage);
+                client.sendRawMessage(fullMessage);
             }
         }
     }
@@ -71,14 +94,20 @@ public class ClientHandler implements Runnable {
         }
     }
 
+    public String getUserName() {
+        return userName;
+    }
+    public void setUserName(String userName) {
+        this.userName = userName;
+    }
+    public List<ClientHandler> getAllClients() {
+        return allClients;
+    }
+
     private void sendResponse(String response, Writer writer) throws IOException {
         writer.write(response);
         writer.write(System.lineSeparator());
         writer.flush();
-    }
-
-    private boolean isQuitMsg(String message) {
-        return "bye".equalsIgnoreCase(message);
     }
 
     private PrintWriter getWriter(Socket socket) throws IOException {
