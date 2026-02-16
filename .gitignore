@@ -1,0 +1,6 @@
+### IntelliJ IDEA ###
+out/
+!**/src/main/**/out/
+!**/src/test/**/out/
+hw2-server.iml
+.idea
